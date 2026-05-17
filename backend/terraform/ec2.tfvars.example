@@ -1,0 +1,26 @@
+# Copy to ec2.tfvars and fill in. Then:
+#
+#   terraform -chdir=backend/terraform apply -var-file=ec2.tfvars
+#
+# Cost: ~$15/month for t3.small + EIP. `terraform destroy` zeroes the bill.
+
+use_localstack      = false
+aws_region          = "us-east-1"
+bucket_prefix       = "autopilot-887961501818"
+create_iam_policies = false
+
+# Flip these to spin up the always-on host:
+create_ec2_instance = true
+ec2_instance_type   = "t3.small"
+ec2_name            = "autopilot"
+ec2_root_volume_gb  = 30
+
+# CIDR allowed to SSH. Narrow to your IP for production; 0.0.0.0/0 only for demo convenience.
+# Find your IP: curl -s https://api.ipify.org && echo
+# Then: ec2_admin_cidr = "203.0.113.42/32"
+ec2_admin_cidr = "0.0.0.0/0"
+
+# Contents of an SSH public key authorized on ec2-user@<host>.
+# Generate one if you don't have it:  ssh-keygen -t ed25519 -f ~/.ssh/autopilot
+# Then paste the contents of ~/.ssh/autopilot.pub below as a single line.
+ec2_public_key = "ssh-ed25519 AAAA... your-public-key your-email@example.com"
