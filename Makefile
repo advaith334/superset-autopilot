@@ -1,4 +1,4 @@
-.PHONY: help up down logs logs-app ps doctor teardown rebuild
+.PHONY: help up down logs logs-app ps doctor teardown rebuild migrate
 
 SHELL := /bin/bash
 COMPOSE := docker compose
@@ -33,3 +33,6 @@ ps: ## Show container status
 
 doctor: ## Verify the backend is reachable
 	@echo "Checking app...";  curl -fsS http://localhost:8000/health && echo " OK"
+
+migrate: ## Run DB migrations (Alembic)
+	$(COMPOSE) exec app alembic upgrade head
