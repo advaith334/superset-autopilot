@@ -2,6 +2,27 @@
 
 Event-driven system that ingests GitHub issues from a Superset fork, builds a structured case file, hands it to Devin via the Devin API, and tracks the resulting PRs through merge. Operator surface is a single Grafana page.
 
+## Live demo
+
+The backend is hosted on EC2 — no local setup needed to see it run.
+
+| URL | What it is |
+|---|---|
+| http://44.208.208.66:3001/d/autopilot | Grafana dashboard (login: `admin` / `admin`) |
+| http://44.208.208.66:8000/webhook/github | GitHub webhook target |
+
+Trigger a demo issue → Superset PR flow with one command:
+
+```bash
+# Single demo scenario
+curl -X POST http://44.208.208.66:8000/dispatch/1
+
+# All three
+for i in 1 2 3; do curl -X POST http://44.208.208.66:8000/dispatch/$i; done
+```
+
+Then watch the dashboard update.
+
 ## Layout
 
 ```
@@ -23,7 +44,7 @@ superset-autopilot/
 - Devin API key + org ID
 - A GitHub fork to operate on, with a PAT and webhook → `https://<your-tunnel>/webhook/github`
 
-## Quickstart
+## Quickstart (local dev)
 
 ```bash
 cp .env.example .env          # fill in real values
@@ -35,13 +56,17 @@ make file-issues              # file seeded issues on your fork
 
 Auto-dispatch (`AUTO_DISPATCH_THRESHOLD=0.0`) sends every ready triage run to Devin without a human click. Raise the threshold to surface a manual-review queue.
 
-## Open
+Local URLs once `make up` is done:
 
 | URL | Why |
 |---|---|
 | http://localhost:3001/d/autopilot | The Grafana dashboard |
 | http://localhost:8000/docs | Backend API (FastAPI Swagger) |
 | http://localhost:9090 | Prometheus |
+
+## Hosted deployment
+
+The same docker-compose stack runs on EC2 via `backend/terraform`. See [`backend/terraform/EC2-DEPLOY.md`](backend/terraform/EC2-DEPLOY.md) for the walkthrough. Current live host: `44.208.208.66`.
 
 ## Trust boundaries
 

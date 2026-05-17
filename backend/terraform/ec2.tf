@@ -77,7 +77,7 @@ resource "aws_security_group" "autopilot" {
 
   # Backend HTTP (FastAPI app, webhook target)
   ingress {
-    description = "Backend (FastAPI) — public webhook target"
+    description = "Backend (FastAPI) - public webhook target"
     from_port   = 8000
     to_port     = 8000
     protocol    = "tcp"
