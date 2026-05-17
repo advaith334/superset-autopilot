@@ -1,12 +1,18 @@
-"""Backend HTTP surface (Phase 2):
+"""Unified FastAPI app — single entry point for the autopilot.
 
-  POST /webhook/github           — GitHub issue webhook (HMAC-verified, pgvector dedup)
+HTTP surface:
+  POST /webhook/github           — receive real GitHub issue webhooks (HMAC-verified)
   POST /triage/{issue_id}        — manually re-enqueue triage
+  POST /dispatch/{run_id}        — manually dispatch a Devin session (auto loop does this normally)
   GET  /issues, /issues/{id}     — list / fetch ingested issues
   GET  /triage_runs[/{id}]       — list / fetch triage runs (run's case file URL is pre-signed on GET)
+  GET  /sessions[/{id}]          — list / fetch Devin sessions
+  GET  /pull_requests            — list PRs linked from Devin sessions
   GET  /health, /metrics
 
-Startup launches the triage worker daemon thread."""
+Startup launches one bootstrap call (Devin knowledge / secret / repo index)
+and six background daemon threads via dispatch.start_auto_dispatch() and
+monitor.start_all() (plus triage.worker_loop)."""
 
 import json
 import logging
@@ -17,21 +23,19 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_late
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import triage
-from .clients import (
-    embed, enqueue_triage, parse_issue_event, s3_presign_get, triage_queue_depth,
-    verify_signature,
-)
+from . import dispatch, monitor, triage
+from .clients import enqueue_triage, parse_issue_event, s3_presign_get, triage_queue_depth, verify_signature
+from .clients import embed
 from .config import settings
 from .models import (
-    Event, Issue, IssueListOut, IssueOut, TriageRun, TriageRunOut, WebhookResponse,
-    get_db,
+    DevinSession, Event, Issue, IssueListOut, IssueOut, PullRequest, PullRequestOut,
+    SessionOut, TriageRun, TriageRunOut, WebhookResponse, get_db,
 )
 
 log = logging.getLogger("autopilot")
 logging.basicConfig(level="INFO", format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
-app = FastAPI(title="autopilot", version="0.3.0")
+app = FastAPI(title="autopilot", version="1.0.0")
 
 
 # ════════════════════════ Prometheus metrics ════════════════════════
@@ -55,15 +59,26 @@ manual_triggers = Counter(
     "Manual /triage/{id} invocations.",
     ["outcome"],
 )
+sessions_dispatched = Counter(
+    "autopilot_sessions_dispatched_total",
+    "Devin sessions dispatched, by outcome and mode.",
+    ["outcome", "mode"],
+)
 
 
-# ════════════════════════ Startup ════════════════════════
+_mode = "real" if dispatch._client.enabled else "stub"  # noqa: SLF001
+
+
+# ════════════════════════ Startup: bootstrap + daemons ════════════════════════
 
 
 @app.on_event("startup")
 def _startup() -> None:
+    dispatch.bootstrap()
     threading.Thread(target=triage.worker_loop, name="triage-worker", daemon=True).start()
-    log.info("autopilot up — triage worker running")
+    dispatch.start_auto_dispatch()
+    monitor.start_all()
+    log.info("autopilot up — bootstrap + 6 daemons running")
 
 
 # ════════════════════════ Health / metrics ════════════════════════
@@ -71,7 +86,7 @@ def _startup() -> None:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "devin_mode": _mode}
 
 
 @app.get("/metrics")
@@ -181,7 +196,21 @@ def get_triage_run(run_id: int, db: Session = Depends(get_db)) -> TriageRunOut:
     return out
 
 
-# ════════════════════════ Issues read API ════════════════════════
+# ════════════════════════ Dispatch routes ════════════════════════
+
+
+@app.post("/dispatch/{triage_run_id}")
+def manual_dispatch(triage_run_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
+    try:
+        session = dispatch.dispatch_triage_run(db, triage_run_id)
+    except dispatch.DispatchError as exc:
+        sessions_dispatched.labels(outcome="rejected", mode=_mode).inc()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    sessions_dispatched.labels(outcome="dispatched", mode=_mode).inc()
+    return {"status": "dispatched", "devin_session_id": session.session_id, "mode": _mode}
+
+
+# ════════════════════════ Issues / sessions / PRs read API ════════════════════════
 
 
 @app.get("/issues", response_model=IssueListOut)
@@ -207,3 +236,25 @@ def get_issue(issue_id: int, db: Session = Depends(get_db)) -> IssueOut:
     if issue is None:
         raise HTTPException(status_code=404, detail="issue not found")
     return IssueOut.model_validate(issue)
+
+
+@app.get("/sessions", response_model=list[SessionOut])
+def list_sessions(state: str | None = None, limit: int = 50, db: Session = Depends(get_db)) -> list[SessionOut]:
+    stmt = select(DevinSession).order_by(DevinSession.id.desc()).limit(limit)
+    if state:
+        stmt = stmt.where(DevinSession.state == state)
+    return [SessionOut.model_validate(s) for s in db.execute(stmt).scalars()]
+
+
+@app.get("/sessions/{session_id}", response_model=SessionOut)
+def get_session(session_id: int, db: Session = Depends(get_db)) -> SessionOut:
+    s = db.get(DevinSession, session_id)
+    if s is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    return SessionOut.model_validate(s)
+
+
+@app.get("/pull_requests", response_model=list[PullRequestOut])
+def list_prs(limit: int = 50, db: Session = Depends(get_db)) -> list[PullRequestOut]:
+    stmt = select(PullRequest).order_by(PullRequest.id.desc()).limit(limit)
+    return [PullRequestOut.model_validate(p) for p in db.execute(stmt).scalars()]
