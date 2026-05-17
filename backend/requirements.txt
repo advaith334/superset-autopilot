@@ -8,5 +8,6 @@ psycopg[binary]==3.2.3
 pgvector==0.3.6
 redis==5.2.0
 httpx==0.28.0
+boto3==1.35.71
 prometheus-client==0.21.0
 fastembed==0.4.2
