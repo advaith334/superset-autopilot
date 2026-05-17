@@ -1,0 +1,162 @@
+{
+  "uid": "autopilot",
+  "title": "Autopilot",
+  "tags": ["autopilot"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 100, "type": "row", "title": "At a glance",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false
+    },
+
+    {
+      "id": 1, "type": "stat",
+      "title": "Issues received (24h)",
+      "description": "GitHub issues filed on the fork in the last 24 hours that the autopilot ingested.",
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{ "rawSql": "SELECT count(*) FROM issues WHERE created_at > now() - interval '24 hours'", "format": "table" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "id": 3, "type": "stat",
+      "title": "Devin sessions running now",
+      "description": "Sessions currently executing on Devin. Capped by DEVIN_MAX_CONCURRENT in .env (default 3).",
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{ "rawSql": "SELECT count(*) FROM devin_sessions WHERE state IN ('dispatched','running')", "format": "table" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 5 }] } } }
+    },
+    {
+      "id": 4, "type": "stat",
+      "title": "PRs opened (24h)",
+      "description": "Pull requests Devin opened on the fork in the last 24 hours.",
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{ "rawSql": "SELECT count(*) FROM pull_requests WHERE created_at > now() - interval '24 hours'", "format": "table" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "id": 5, "type": "stat",
+      "title": "Devin spend today (ACU)",
+      "description": "ACU = Agent Compute Unit, Devin's billing metric. Pulled live from Devin's /consumption/daily API.",
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "autopilot_devin_acu_today", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "decimals": 2 } }
+    },
+    {
+      "id": 6, "type": "stat",
+      "title": "Auto-fix success rate (24h)",
+      "description": "Of sessions dispatched in the last 24h, the % that reached 'completed' (PR opened).",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{
+        "rawSql": "SELECT CASE WHEN count(*) = 0 THEN 0 ELSE 100.0 * sum(CASE WHEN state = 'completed' THEN 1 ELSE 0 END) / count(*) END FROM devin_sessions WHERE dispatched_at > now() - interval '24 hours'",
+        "format": "table"
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 80 }] } } }
+    },
+
+    {
+      "id": 200, "type": "row", "title": "Devin sessions (live + history)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }, "collapsed": false
+    },
+    {
+      "id": 10, "type": "table",
+      "title": "All Devin sessions",
+      "description": "Every session the autopilot has dispatched. Running rows sit at the top (newest first); completed and failed history is below. ACU/$ for running sessions tick upward live; for completed sessions they're the final billed amount.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{
+        "rawSql": "SELECT ds.devin_session_id AS \"Devin session\", i.github_number AS \"Issue #\", left(i.title, 60) AS \"Title\", ds.state AS \"State\", ds.acu_consumed AS \"ACU\", ds.cost_usd AS \"$\", ds.dispatched_at AS \"Dispatched\", ds.completed_at AS \"Completed\", pr.github_pr_number AS \"PR #\", pr.html_url AS \"PR URL\" FROM devin_sessions ds JOIN issues i ON i.id = ds.issue_id LEFT JOIN pull_requests pr ON pr.session_id = ds.id ORDER BY CASE WHEN ds.state IN ('dispatched','running') THEN 0 ELSE 1 END, ds.dispatched_at DESC LIMIT 100",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "$" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }] },
+          { "matcher": { "id": "byName", "options": "ACU" }, "properties": [{ "id": "decimals", "value": 1 }] },
+          {
+            "matcher": { "id": "byName", "options": "State" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } },
+              { "id": "mappings", "value": [
+                { "type": "value", "options": { "completed": { "color": "green",  "index": 0, "text": "completed" } } },
+                { "type": "value", "options": { "running":   { "color": "yellow", "index": 1, "text": "running" } } },
+                { "type": "value", "options": { "dispatched":{ "color": "yellow", "index": 2, "text": "dispatched" } } },
+                { "type": "value", "options": { "failed":    { "color": "red",    "index": 3, "text": "failed" } } },
+                { "type": "value", "options": { "suspended": { "color": "orange", "index": 4, "text": "suspended (needs human)" } } }
+              ] }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "PR URL" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "link" } }, { "id": "links", "value": [{ "title": "Open PR", "url": "${__value.text}", "targetBlank": true }] }] }
+        ]
+      }
+    },
+
+    {
+      "id": 300, "type": "row", "title": "Issues + PRs",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 }, "collapsed": false
+    },
+    {
+      "id": 11, "type": "table",
+      "title": "Recent issues",
+      "description": "Every GitHub issue the autopilot ingested. 'Dup of' = flagged as a near-duplicate of that earlier issue (so Devin never sees them twice).",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 19 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{
+        "rawSql": "SELECT github_number AS \"Issue #\", left(title, 60) AS \"Title\", status AS \"Status\", dedup_of_id AS \"Dup of\", html_url AS \"URL\", created_at AS \"Filed\" FROM issues ORDER BY created_at DESC LIMIT 30",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "URL" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "link" } }, { "id": "links", "value": [{ "title": "Open issue", "url": "${__value.text}", "targetBlank": true }] }] }
+        ]
+      }
+    },
+    {
+      "id": 12, "type": "table",
+      "title": "Pull requests Devin opened",
+      "description": "Click any URL to open the PR on GitHub.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 19 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [{
+        "rawSql": "SELECT pr.github_pr_number AS \"PR #\", pr.merge_state AS \"State\", pr.html_url AS \"URL\", pr.created_at AS \"Opened\" FROM pull_requests pr ORDER BY pr.created_at DESC LIMIT 30",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "URL" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "link" } }, { "id": "links", "value": [{ "title": "Open PR", "url": "${__value.text}", "targetBlank": true }] }] }
+        ]
+      }
+    },
+
+    {
+      "id": 400, "type": "row", "title": "Trend",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 }, "collapsed": false
+    },
+    {
+      "id": 20, "type": "timeseries",
+      "title": "Backlog burndown",
+      "description": "Running totals over time: issues filed (top line) vs. PRs Devin has opened (bottom line). The gap between them is the open backlog.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 29 },
+      "datasource": { "type": "postgres", "uid": "autopilot-db" },
+      "targets": [
+        { "rawSql": "SELECT date_trunc('minute', created_at) AS time, count(*) OVER (ORDER BY date_trunc('minute', created_at)) AS \"Issues filed\" FROM issues ORDER BY time", "format": "time_series", "refId": "A" },
+        { "rawSql": "SELECT date_trunc('minute', created_at) AS time, count(*) OVER (ORDER BY date_trunc('minute', created_at)) AS \"PRs opened\" FROM pull_requests ORDER BY time", "format": "time_series", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "lineWidth": 2, "spanNulls": true } }
+      }
+    }
+  ]
+}

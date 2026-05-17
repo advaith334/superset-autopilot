@@ -10,8 +10,9 @@ up: ## Bring up the plane
 	$(COMPOSE) up -d --build
 	@echo ""
 	@echo "Stack is up:"
+	@echo "  - Grafana:    http://localhost:3001 (admin/admin)"
+	@echo "    └ Dashboard: http://localhost:3001/d/autopilot"
 	@echo "  - API docs:    http://localhost:8000/docs"
-	@echo "  - Prometheus:  http://localhost:9090"
 
 down: ## Stop the plane (preserve volumes)
 	$(COMPOSE) down
@@ -31,8 +32,9 @@ logs-app: ## Tail backend app logs
 ps: ## Show container status
 	$(COMPOSE) ps
 
-doctor: ## Verify the backend is reachable
-	@echo "Checking app...";  curl -fsS http://localhost:8000/health && echo " OK"
+doctor: ## Verify the backend + grafana are reachable
+	@echo "Checking app...";     curl -fsS http://localhost:8000/health && echo " OK"
+	@echo "Checking grafana..."; curl -fsS http://localhost:3001/api/health && echo " OK"
 
 migrate: ## Run DB migrations (Alembic)
 	$(COMPOSE) exec app alembic upgrade head
