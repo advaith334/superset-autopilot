@@ -1,0 +1,26 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.next/
+dist/
+build/
+*.egg-info/
+
+# Terraform
+backend/terraform/.terraform/
+backend/terraform/*.tfstate
+backend/terraform/*.tfstate.*
+backend/terraform/*.tfvars
+!backend/terraform/*.tfvars.example
+backend/terraform/.terraform.lock.hcl
+
+# Local data
+.data/
+localstack-data/
+
+plan.md
