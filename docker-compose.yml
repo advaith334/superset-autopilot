@@ -7,6 +7,8 @@ services:
     container_name: autopilot
     env_file: .env
     ports: ["8000:8000"]
+    volumes:
+      - ${SUPERSET_FORK_PATH:-../superset}:/superset-fork:ro
     depends_on:
       postgres:
         condition: service_healthy
