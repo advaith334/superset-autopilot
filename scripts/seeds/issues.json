@@ -1,0 +1,44 @@
+[
+  {
+    "number": 9001,
+    "title": "CSV export drops trailing newline on multi-line string cells",
+    "labels": ["bug"],
+    "body": "**Steps to reproduce**\n1. Create a chart whose query returns a column with values ending in a newline (e.g. concatenated multi-line text).\n2. Export the chart to CSV.\n3. Open the CSV and inspect the affected column.\n\n**Expected behavior**\nThe trailing newline should be preserved (RFC 4180-style quoting).\n\n**Actual behavior**\nThe final newline is silently stripped on rows that have only the newline in the cell. Repro hits `superset/utils/csv.py` in df_to_escaped_csv.\n\n**Environment**\nSuperset 4.x"
+  },
+  {
+    "number": 9002,
+    "title": "Off-by-one in /api/v1/chart pagination — last item skipped on page boundary",
+    "labels": ["bug", "api"],
+    "body": "**Steps to reproduce**\n1. Have exactly 21 charts.\n2. Request `GET /api/v1/chart/?q=(page:0,page_size:20)` — you get 20.\n3. Request `GET /api/v1/chart/?q=(page:1,page_size:20)` — you get 0 instead of 1.\n\n**Expected behavior**\nLast page should contain the 21st chart.\n\n**Actual behavior**\nLikely an off-by-one in the offset calc in `superset/views/base_api.py` or the chart REST view."
+  },
+  {
+    "number": 9003,
+    "title": "Timezone bug — chart shows UTC dates for non-UTC users",
+    "labels": ["bug", "viz"],
+    "body": "Charts using a `time_grain` rollup are rendering the bucket label in UTC even when the user's timezone preference is set to America/Los_Angeles. Reproduced on Time-series Line chart. Likely interaction between `superset/charts/data/query_context.py` and the React time formatter.\n\n**Expected behavior**: bucket labels respect user timezone.\n**Actual behavior**: always UTC."
+  },
+  {
+    "number": 9004,
+    "title": "Filter component state leaks across dashboard switches",
+    "labels": ["bug", "frontend"],
+    "body": "**Steps to reproduce**\n1. Open Dashboard A, apply a filter on column `region = NORTH`.\n2. Navigate to Dashboard B (no shared filter scope).\n3. Observe: Dashboard B's filter component shows `region = NORTH` selected, even though Dashboard B has a different filter set.\n\nLooks like a stale Redux/Zustand slice not being reset on dashboard mount. `superset-frontend/src/dashboard/components/nativeFilters/...`."
+  },
+  {
+    "number": 9005,
+    "title": "Race condition in async query results — duplicate row counts",
+    "labels": ["bug", "hard", "async"],
+    "body": "Intermittent: SQL Lab queries with `enable_async_query` sometimes return duplicate row counts in the result metadata when the Celery worker and the polling client race. Repro is flaky (~1 in 20 runs at concurrency 4). No clean repro script; happens under load.\n\nThis is hard — likely needs locking or idempotency in `superset/sql_lab.py` / `superset/queries/saved_queries`."
+  },
+  {
+    "number": 9006,
+    "title": "Missing aria-label on dashboard toolbar Refresh button",
+    "labels": ["a11y", "bug", "good first issue"],
+    "body": "Screen readers announce the dashboard toolbar Refresh button as just 'button' because the `aria-label` attribute is missing on the IconButton. File: `superset-frontend/src/dashboard/components/Header/HeaderActionsDropdown.tsx` or similar.\n\nLow risk fix; should be a one-liner."
+  },
+  {
+    "number": 9007,
+    "title": "CSV export drops trailing newlines",
+    "labels": ["bug"],
+    "body": "When exporting to CSV, trailing newlines in cells are dropped. This is a near-duplicate of an earlier report and should be deduped automatically."
+  }
+]
