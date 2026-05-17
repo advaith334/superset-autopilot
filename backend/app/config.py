@@ -1,4 +1,7 @@
-"""Settings for the backend."""
+"""Unified settings for the single-container backend.
+
+Union of what the previous four services (ingest, triage, dispatcher, monitor)
+each had. Same env-var names; the .env file works unchanged."""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,11 +17,36 @@ class Settings(BaseSettings):
     # ── Ingest ──
     github_webhook_secret: str = "changeme"
     github_target_repo: str = "advaith334/superset"
-    github_token: str = ""
     dedup_threshold: float = 0.92
 
     # ── Triage ──
     superset_fork_path: str = "/superset-fork"
+
+    # ── Devin ──
+    devin_api_key: str = ""
+    devin_org_id: str = ""
+    devin_api_base: str = "https://api.devin.ai"
+    devin_max_concurrent: int = 3
+    devin_max_acu_per_day: int = 500
+    devin_target_repo: str = "advaith334/superset"
+    devin_github_secret_name: str = "AUTOPILOT_GITHUB_TOKEN"
+    devin_knowledge_folder: str = "Superset Autopilot"
+    devin_consumption_poll_seconds: int = 60
+    devin_github_actor: str = "devin-ai-integration[bot]"
+
+    # ── Dispatcher loop ──
+    auto_dispatch_threshold: float = 0.0
+    auto_dispatch_interval_seconds: int = 10
+
+    # ── Monitor loops ──
+    reconcile_interval_seconds: int = 30
+    stub_session_lifetime_seconds: int = 60
+    ci_watch_interval_seconds: int = 45
+    ci_log_snippet_chars: int = 1500
+    pr_watch_interval_seconds: int = 15
+
+    # ── GitHub (monitor side) ──
+    github_token: str = ""
 
     # ── AWS S3 ──
     aws_region: str = "us-east-1"
