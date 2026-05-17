@@ -41,11 +41,11 @@ terraform -chdir=backend/terraform apply -var-file=ec2.tfvars
 Outputs you'll see:
 
 ```
-ec2_public_dns      = "ec2-3-145-22-7.us-east-2.compute.amazonaws.com"
-ec2_public_ip       = "3.145.22.7"
-ec2_ssh_command     = "ssh ec2-user@3.145.22.7"
-ec2_dashboard_url   = "http://3.145.22.7:3001/d/autopilot"
-ec2_webhook_url     = "http://3.145.22.7:8000/webhook/github"
+ec2_public_dns      = "ec2-44-208-208-66.compute-1.amazonaws.com"
+ec2_public_ip       = "44.208.208.66"
+ec2_ssh_command     = "ssh ec2-user@44.208.208.66"
+ec2_dashboard_url   = "http://44.208.208.66:3001/d/autopilot"
+ec2_webhook_url     = "http://44.208.208.66:8000/webhook/github"
 ```
 
 Save those.

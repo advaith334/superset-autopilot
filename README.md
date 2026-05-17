@@ -85,9 +85,27 @@ Need `gh` authenticated against your fork and the env vars in `.env` populated (
 
 ```bash
 make cleanup-issues  # close all open issues with the autopilot-demo label
-make reset-state     # truncate autopilot DB tables (destructive)
+make reset-state     # truncate LOCAL autopilot DB tables (destructive)
 make down            # stop containers (preserve volumes)
 make teardown        # stop containers AND delete volumes
+```
+
+If you're demoing against the EC2 backend, use the `-ec2` variants — `make reset-state` only touches your laptop's Postgres, so dedup history on EC2 will keep marking repeat demo issues as duplicates and the pipeline will short-circuit before triage:
+
+```bash
+make cleanup-issues   # closes issues on GitHub (same repo either way)
+make reset-state-ec2  # SSHes in and truncates EC2 Postgres
+```
+
+Other EC2 helpers (all default to `EC2_HOST=44.208.208.66`, override via env):
+
+```bash
+make doctor-ec2                          # health-check app + grafana on EC2
+make ssh-ec2                             # SSH into the box
+make logs-ec2                            # tail backend app logs
+make sessions-ec2 / make issues-ec2      # read API on EC2
+make triage-trigger-ec2 ID=N
+make dispatch-ec2 TRIAGE_RUN_ID=N
 ```
 
 If you provisioned the EC2 host, tear that down too:
