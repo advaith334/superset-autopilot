@@ -1,0 +1,7 @@
+# Copy to prod.tfvars when you're ready to target a real AWS account.
+# Auth via env vars (AWS_PROFILE, AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY) or
+# an `assume_role` block in providers.tf.
+
+use_localstack = false
+aws_region     = "us-east-1"
+bucket_prefix  = "autopilot-prod"
